@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fadeIn, fadeOut } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useCheckState } from "@/hooks/useCheckState";
 import { CHECK_TRANSITION_DURATION } from "@/constants/animation";
 import { CheckPhase } from "@/types/check";
+import { ButtonCheck } from "@/components/checks/ButtonCheck";
+import type { ButtonCheckResult } from "@/types/check";
 
 /** Ordered list of phases to display. */
 const DISPLAY_PHASES: { phase: CheckPhase; label: string }[] = [
@@ -23,6 +25,7 @@ export default function CheckPage() {
     phase,
     startCheck,
     advancePhase,
+    completeButtonCheck,
     getPhaseName,
     getNextPhaseName,
   } = useCheckState();
@@ -46,7 +49,7 @@ export default function CheckPage() {
   }, [phase, reducedMotion]);
 
   // Handle phase advancement with transition animation
-  const handleAdvance = () => {
+  const handleAdvance = useCallback(() => {
     if (transitioning) return;
 
     if (phase === CheckPhase.RESULTS) {
@@ -66,23 +69,38 @@ export default function CheckPage() {
       duration: CHECK_TRANSITION_DURATION / 2,
     });
 
-    // Use setTimeout as fallback since Anime.js JSAnimation may not have .finished
     setTimeout(() => {
       advancePhase();
       setTransitioning(false);
     }, CHECK_TRANSITION_DURATION / 2 + 50);
-  };
+  }, [phase, transitioning, reducedMotion, advancePhase, router]);
 
-  // Auto-advance through stub phases (until real checks are implemented)
+  // Handle button check completion
+  const handleButtonCheckComplete = useCallback(
+    (results: ButtonCheckResult[]) => {
+      completeButtonCheck(results);
+    },
+    [completeButtonCheck]
+  );
+
+  // Auto-advance through stub phases (stick calibration, stick check, trigger check)
+  // Button check has its own completion handler, so skip it here
   useEffect(() => {
-    if (phase === CheckPhase.IDLE || phase === CheckPhase.RESULTS || transitioning) return;
+    if (
+      phase === CheckPhase.IDLE ||
+      phase === CheckPhase.BUTTON_CHECK ||
+      phase === CheckPhase.RESULTS ||
+      transitioning
+    ) {
+      return;
+    }
 
     const timer = setTimeout(() => {
       handleAdvance();
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [phase, transitioning]);
+  }, [phase, transitioning, handleAdvance]);
 
   const currentPhase = DISPLAY_PHASES.find((p) => p.phase === phase);
   const nextPhaseName = getNextPhaseName();
@@ -112,21 +130,10 @@ export default function CheckPage() {
           )}
         </div>
 
-        {/* Phase content area — stubs for now */}
-        <div className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-8">
+        {/* Phase content */}
+        <div className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-8">
           {phase === CheckPhase.BUTTON_CHECK && (
-            <div className="flex flex-col items-center gap-4">
-              <p className="text-sm text-[var(--text-secondary)]">
-                Button check will test each button press accuracy and reaction time.
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {["A", "B", "X", "Y"].map((btn) => (
-                  <div key={btn} className="keycap">
-                    {btn}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ButtonCheck onComplete={handleButtonCheckComplete} />
           )}
 
           {phase === CheckPhase.STICK_CALIBRATION && (
@@ -178,7 +185,7 @@ export default function CheckPage() {
         {/* Skip / Continue button */}
         <button
           onClick={handleAdvance}
-          disabled={transitioning}
+          disabled={transitioning || phase === CheckPhase.BUTTON_CHECK}
           className="inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2.5 text-xs font-mono uppercase tracking-wider border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-secondary)] transition-all duration-200 active:scale-[0.98] disabled:opacity-40"
         >
           {phase === CheckPhase.RESULTS ? "View Results" : "Skip"}
