@@ -4,17 +4,26 @@ import { useEffect, useRef } from "react";
 import { staggerFadeIn, fadeIn } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useGamepadConnection } from "@/hooks/useGamepadConnection";
+import { useGamepad } from "@/hooks/useGamepad";
+import { useGameLoop } from "@/hooks/useGameLoop";
+import { ControllerStatus } from "@/components/controller/ControllerStatus";
 import { ENTRANCE_DURATION, ENTRANCE_STAGGER } from "@/constants/animation";
 
 export default function Home() {
   const reducedMotion = useReducedMotion();
   const { connected, controllerId } = useGamepadConnection();
+  const { controllerInfo, poll } = useGamepad();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const subtitleRef = useRef<HTMLParagraphElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLAnchorElement>(null);
+
+  // Poll gamepad state each frame
+  useGameLoop(() => {
+    poll();
+  }, connected);
 
   // Entrance animation
   useEffect(() => {
@@ -61,34 +70,12 @@ export default function Home() {
         </p>
 
         {/* Controller Status Card */}
-        <div
-          ref={statusRef}
-          className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-6 opacity-0"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                connected
-                  ? "bg-[var(--accent)]"
-                  : "bg-[var(--text-secondary)]"
-              }`}
-            />
-            <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-secondary)]">
-              {connected ? "Controller Connected" : "No Controller Detected"}
-            </span>
-          </div>
-
-          {connected && controllerId && (
-            <p className="mt-3 text-xs font-mono text-[var(--text-secondary)] truncate">
-              {controllerId}
-            </p>
-          )}
-
-          {!connected && (
-            <p className="mt-3 text-xs text-[var(--text-secondary)]">
-              Connect a controller via USB or Bluetooth to begin.
-            </p>
-          )}
+        <div ref={statusRef} className="w-full opacity-0">
+          <ControllerStatus
+            connected={connected}
+            controllerId={controllerId}
+            controllerInfo={controllerInfo}
+          />
         </div>
 
         {/* Start Button */}
